@@ -1,0 +1,21 @@
+[extend]
+useDefault = true
+
+[rules]
+description = "Strict Anti-Leak Rules for Public Market Research Engine"
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key Detection"
+regex = '''(?i)(?:key|api|token|secret|password|auth)[-_\w]{0,20}\s*[:=]\s*["']?([0-9a-zA-Z-_]{20,})["']?'''
+entropy = 3.5
+
+[[rules]]
+id = "github-pat"
+description = "GitHub Personal Access Token"
+regex = '''ghp_[0-9a-zA-Z]{36}'''
+
+[[rules]]
+id = "telegram-token"
+description = "Telegram Bot Token"
+regex = '''[0-9]{8,10}:[a-zA-Z0-9_-]{35}'''

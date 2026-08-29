@@ -1,0 +1,64 @@
+name: "Autonomous Market Research Cloud Runner"
+
+on:
+  repository_dispatch:
+    types: [market_research_event]
+  workflow_dispatch:
+    inputs:
+      query:
+        description: "Market Research Query / Topic"
+        required: true
+        default: "Autonomous AI Agent Trends 2026"
+      notebook_id:
+        description: "Target NotebookLM ID (Optional)"
+        required: false
+
+jobs:
+  market_research:
+    name: "Execute Market Intelligence & Social Listening"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install requests pyyaml pydantic
+
+      - name: Execute Multi-Platform Market Research
+        id: run_research
+        env:
+          RESEARCH_QUERY: ${{ github.event.client_payload.query || inputs.query }}
+          NOTEBOOK_ID: ${{ github.event.client_payload.notebook_id || inputs.notebook_id }}
+          TASK_ID: ${{ github.event.client_payload.task_id || 'manual_market_task' }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '1187577977' }}
+        run: |
+          OUTPUT_FILE="market_research_${TASK_ID}.md"
+          python scripts/run_market_research.py "$RESEARCH_QUERY" --output "$OUTPUT_FILE"
+
+          if [ -n "$TELEGRAM_TOKEN" ]; then
+            python - << 'PYEOF'
+          import os, requests
+          token = os.environ.get("TELEGRAM_TOKEN")
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+          query = os.environ.get("RESEARCH_QUERY")
+          task_id = os.environ.get("TASK_ID")
+
+          msg = f"📊 *Market Research Cloud Complete*\n\n*Topic:* `{query}`\n*Task:* `{task_id}`\n*Engine:* Agent-Reach GitHub Actions Cloud\n*Status:* Artifact generated and ready for ingestion."
+          requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"})
+          PYEOF
+          fi
+
+      - name: Upload Research Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-research-report
+          path: "market_research_*.md"
