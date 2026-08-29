@@ -1,0 +1,94 @@
+name: "Durex Full-Suite Copywriting & Campaign Cloud Factory ($0 Cloud)"
+
+on:
+  repository_dispatch:
+    types: [durex_full_campaign_event]
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Campaign Topic (Chủ đề chiến dịch)"
+        required: true
+        default: "Tự Động Hóa AI R&D và Marketing"
+      usp:
+        description: "Core USP / Value Proposition (Điểm khác biệt cốt lõi)"
+        required: true
+        default: "Hệ Thống Dual-Node Tự Động Toàn Diện"
+      target_audience:
+        description: "Target Audience (Khách hàng mục tiêu)"
+        required: false
+        default: "Solopreneurs & Tech Leaders"
+      competitor:
+        description: "Competitor Name to contrast (Đối thủ cạnh tranh)"
+        required: false
+        default: "Giải pháp thủ công cũ"
+
+jobs:
+  generate_full_campaign:
+    name: "Generate Full Copy Suite & HD Poster"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Node Canvas & Fonts
+        run: |
+          npm init -y
+          npm install @napi-rs/canvas
+
+      - name: Generate Full Durex Copywriting Suite
+        env:
+          TOPIC: ${{ github.event.client_payload.topic || inputs.topic }}
+          USP: ${{ github.event.client_payload.usp || inputs.usp }}
+          AUDIENCE: ${{ github.event.client_payload.target_audience || inputs.target_audience }}
+          COMPETITOR: ${{ github.event.client_payload.competitor || inputs.competitor }}
+        run: |
+          python scripts/generate_durex_campaign.py "$TOPIC" "$USP" "$AUDIENCE" "$COMPETITOR" "durex_campaign_full.md"
+
+      - name: Render Matching HD Durex Poster
+        run: |
+          node scripts/render_durex_poster.js "HERMES · STRATEGIC MARKETING" "Người hiểu luật chơi, không cần phải chạy đua." "hiểu luật chơi" "Đánh trúng một điểm, gãy cả một thành trì." "brand_red" "3x4" "durex_campaign_poster.png"
+
+      - name: Dispatch Results to Telegram
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '1187577977' }}
+        run: |
+          if [ -n "$TELEGRAM_TOKEN" ]; then
+            # 1. Send text campaign summary
+            python - << 'PYEOF'
+          import os, requests
+          token = os.environ.get("TELEGRAM_TOKEN")
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+          with open("durex_campaign_full.md", "r", encoding="utf-8") as f:
+              md = f.read()
+
+          msg = f"🎭 *Hermes Durex Full-Suite Campaign Ready!*\n\n{md[:3500]}"
+          requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"})
+          PYEOF
+
+            # 2. Send rendered poster photo
+            curl -F chat_id="$TELEGRAM_CHAT_ID" \
+                 -F photo=@"durex_campaign_poster.png" \
+                 -F caption="🎨 *Durex-Style Marketing Poster (HD 3:4)*\n\n📌 *'Người hiểu luật chơi, không cần phải chạy đua.'*" \
+                 -F parse_mode="Markdown" \
+                 "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto"
+          fi
+
+      - name: Upload Campaign Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: durex-campaign-artifacts
+          path: |
+            durex_campaign_full.md
+            durex_campaign_poster.png
