@@ -1,0 +1,77 @@
+name: "Durex-Style Poster Cloud Renderer ($0 Cloud)"
+
+on:
+  repository_dispatch:
+    types: [durex_render_event]
+  workflow_dispatch:
+    inputs:
+      eyebrow:
+        description: "Eyebrow tag (e.g. HERMES · CHIẾN LƯỢC)"
+        required: false
+        default: "HERMES · CHIẾN LƯỢC MARKETING"
+      headline:
+        description: "Main Headline (Tiêu đề chính)"
+        required: true
+        default: "Người hiểu luật chơi, không cần phải chạy đua."
+      highlight:
+        description: "Highlight Keyword (Từ khóa phóng to 1.75x & đổi màu)"
+        required: true
+        default: "hiểu luật chơi"
+      subtext:
+        description: "Subtext (Dòng phụ bên dưới)"
+        required: false
+        default: "Đánh trúng một điểm, gãy cả một thành trì."
+      theme:
+        description: "Theme Palette (brand_red, midnight_blue, studio_black, papyrus_white)"
+        required: false
+        default: "brand_red"
+      ratio:
+        description: "Aspect Ratio (3x4, 1x1, 9x16, 16x9)"
+        required: false
+        default: "3x4"
+
+jobs:
+  render_poster:
+    name: "Render HD Durex Marketing Poster"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Canvas & Fonts
+        run: |
+          npm init -y
+          npm install @napi-rs/canvas
+
+      - name: Render Poster Image
+        env:
+          EYEBROW: ${{ github.event.client_payload.eyebrow || inputs.eyebrow }}
+          HEADLINE: ${{ github.event.client_payload.headline || inputs.headline }}
+          HIGHLIGHT: ${{ github.event.client_payload.highlight || inputs.highlight }}
+          SUBTEXT: ${{ github.event.client_payload.subtext || inputs.subtext }}
+          THEME: ${{ github.event.client_payload.theme || inputs.theme }}
+          RATIO: ${{ github.event.client_payload.ratio || inputs.ratio }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '1187577977' }}
+        run: |
+          OUTPUT_IMG="durex_marketing_poster.png"
+          node scripts/render_durex_poster.js "$EYEBROW" "$HEADLINE" "$HIGHLIGHT" "$SUBTEXT" "$THEME" "$RATIO" "$OUTPUT_IMG"
+
+          if [ -n "$TELEGRAM_TOKEN" ]; then
+            curl -F chat_id="$TELEGRAM_CHAT_ID" \
+                 -F photo=@"$OUTPUT_IMG" \
+                 -F caption="🎨 *Hermes Durex Marketing Poster Rendered*\n\n📌 *$HEADLINE*\n🏷️ *Theme:* \`$THEME\` | *Tỷ lệ:* \`$RATIO\`" \
+                 -F parse_mode="Markdown" \
+                 "https://api.telegram.org/bot$TELEGRAM_TOKEN/sendPhoto"
+          fi
+
+      - name: Upload Rendered Poster Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: durex-marketing-poster
+          path: "durex_marketing_poster.png"

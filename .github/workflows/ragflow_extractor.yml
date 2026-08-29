@@ -1,0 +1,69 @@
+name: "Clean RAG Competitor Intelligence Extractor ($0 Cloud)"
+
+on:
+  repository_dispatch:
+    types: [ragflow_extract_event]
+  workflow_dispatch:
+    inputs:
+      competitor_name:
+        description: "Competitor Name (e.g. Notion, Canva, Midjourney)"
+        required: true
+        default: "Competitor Analysis"
+      target_url:
+        description: "Competitor URL to extract"
+        required: true
+        default: "https://example.com"
+      notebook_id:
+        description: "Target NotebookLM ID (Default: Strategic Advisor)"
+        required: false
+        default: "d0a42c95-8e17-4304-85eb-73d3747a2dca"
+
+jobs:
+  extract_clean_rag:
+    name: "Extract & Structure Clean RAG Dossier"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          pip install requests pyyaml
+
+      - name: Execute Clean RAG Scraper
+        env:
+          COMPETITOR: ${{ github.event.client_payload.competitor_name || inputs.competitor_name }}
+          TARGET_URL: ${{ github.event.client_payload.target_url || inputs.target_url }}
+          NOTEBOOK_ID: ${{ github.event.client_payload.notebook_id || inputs.notebook_id }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID || '1187577977' }}
+        run: |
+          SAFE_NAME=$(echo "$COMPETITOR" | tr '[:upper:]' '[:lower:]' | tr ' ' '_')
+          OUTPUT="clean_rag_${SAFE_NAME}.md"
+          python scripts/extract_clean_ragflow.py "$COMPETITOR" "$TARGET_URL" "$OUTPUT"
+
+          if [ -n "$TELEGRAM_TOKEN" ]; then
+            python - << 'PYEOF'
+          import os, requests
+          token = os.environ.get("TELEGRAM_TOKEN")
+          chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+          comp = os.environ.get("COMPETITOR")
+          url = os.environ.get("TARGET_URL")
+          nb = os.environ.get("NOTEBOOK_ID")
+
+          msg = f"🎯 *Hermes Clean RAG Complete*\n\n*Đối thủ:* `{comp}`\n*Nguồn:* {url}\n*Notebook Chiến Lược:* `{nb}`\n*Trạng thái:* Đã lọc sạch rác và sẵn sàng nạp RAG!"
+          requests.post(f"https://api.telegram.org/bot{token}/sendMessage", json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"})
+          PYEOF
+          fi
+
+      - name: Upload Clean RAG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-rag-dossier
+          path: "clean_rag_*.md"
